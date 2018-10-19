@@ -1,165 +1,108 @@
-nornj-react-mst-boilerplate
+此demo可高几率复现babel-plugin-import的一个bug
 ====
 
-> `NornJ`+`React`+`Mobx-state-tree`项目模板，可以此项目为模板快速创建新项目。
+## 运行方法
 
-## 构建命令
+执行`npm i`后，输入`npm start`即可自动弹出浏览器运行。此demo复现bug的几率大概为`4/5`左右。
 
-```sh
-npm run dev 或 npm start  #启动webpack-dev-server本地调试，接口使用本地mock server，然后使用http://localhost:8080/dist/web访问页面
-npm run dev-remote        #启动webpack-dev-server本地调试，接口使用后端server，然后使用http://localhost:8080/dist/web访问页面
-npm run build             #构建生产代码到dist目录
-npm run build-test        #构建生产代码到dist目录，使用测试环境配置
-npm run build-local       #构建生产代码到dist目录，可以本地离线访问
-npm test                  #运行单元测试
-npm run coverage          #生成单元测试覆盖率报告
-npm e2e                   #运行e2e测试
+## 起因
+
+我们近半年做的一个项目在经webpack构建后访问页面`有时`会报错，几率比较低，大概10次中有1、2次左右。无论是用dev-server或是env设置为production打包上线后都一样有几率出错。
+
+## bug出现的环境
+
+`windows 7/10`环境下，`node v8`以上、`webpack v3/4`、`babel v6/7`。
+
+## bug现象
+
+使用babel-plugin-import构建代码后，访问页面时偶尔会报出这个错误：
+
+![](images/1.png?raw=true)
+
+查看JSX编译后的代码，生成了未定义的_Row、_Col等JSX组件变量：
+
+![](images/2.png?raw=true)
+
+该模块源码中是这样引入antd的：
+
+```js
+import { Row, Col, Menu, Dropdown, Icon } from 'antd';
 ```
 
-## 使用后端server联调
+但是查看构建后的模块顶部import部分，发现babel-plugin-import只正确转换了部分组件引入；另一部分组件引入并未正确生成：
 
-可在`webpack.config.js`中[配置devServer.proxy参数](https://github.com/joe-sky/nornj-cli/blob/master/templates/react-mst-universal/webpack.config.js#L49)，来设置一个或多个代理去访问后端部署的server数据接口，[关于webpack代理设置可看下这篇文章](https://www.cnblogs.com/liuchuanfeng/p/6802598.html)。
+![](images/3.png?raw=true)
 
-然后使用`npm run dev-remote`启动调试，然后在项目源码中的`__Remote`变量会设置为`true`。可使用它来切换使用`后端服务器接口`或`本地mock server`，[具体代码可看这里](https://github.com/joe-sky/nornj-cli/blob/master/templates/react-mst-universal/src/stores/pages/page1Store.js#L171)。
+如上，只正确生成了Icon组件，Row、Col等都没有转换，而是转换成了直接把antd全包引入了进来。
 
-## React + Mobx + NornJ的相关技术学习资料
+## bug分析
 
-`React + Mobx + NornJ`开发模式快速上手教程[请点这里](https://github.com/joe-sky/nornj-cli/blob/master/docs/guides/overview.md)。
+### 定位bug
 
-### 开发环境
+经较长时间实践，暂定位bug原因为：
 
-本脚手架基于`ES6 + babel`环境，并使用`Webpack`进行打包。
+在babel-plugin-import插件的[Plugin.js](https://github.com/ant-design/babel-plugin-import/blob/master/src/Plugin.js)中，有`specified`、`libraryObjs`、`selectedMethods`、`pathsToRemove`几个用于存储当前正在遍历文件的状态对象。
 
-* [ES6 + babel](#es6--babel)
-* [webpack](#webpack)
+而上述出错的原因在于，这些状态对象是存储在`Plugin`类的实例中的，而`Plugin`类的实例是全局变量(一般只有一个，当配置同时支持两个库是就会有两个)，并不是每个正在遍历的`js/jsx`文件各自独有的。
 
-#### ES6 + Babel
+[这里](https://github.com/ant-design/babel-plugin-import/blob/master/src/index.js#L15)可以看出`Plugin`类的实例是全局变量，在每次调apply的时候传的第一个参数都是`Plugin`类的实例，这些实例保存在[一个全局的数组](https://github.com/ant-design/babel-plugin-import/blob/master/src/index.js#L5)中。
 
-`ES6(ES2015)`(以及更新的版本ES2016、ES2017等)提供了很多之前js版本没有的功能，比如`class`、`解构赋值`、`模块系统`、`for of循环`、`异步操作API Promise`等等，可显著提升开发效率及代码规范性。配合js代码编译器`Babel`，我们现在就可以放心地使用下一代js语法。
+### 为什么这个bug只会偶然出现?
 
-* [ECMAScript 6 入门](http://es6.ruanyifeng.com/)
-* [ES6 学习笔记](https://segmentfault.com/a/1190000002904199)
-* [全面解析ECMAScript 6模块系统](http://www.csdn.net/article/2015-04-30/2824595-Modules-in-ES6)
-* [大白话讲解Promise(一)](http://www.cnblogs.com/lvdabao/p/es6-promise-1.html)
-* [深入理解fetch](http://www.jianshu.com/p/35123b048e5e)
-* [Babel 中文文档](https://babeljs.cn/)
+经一定实践，发现在一般正常的构建操作中，babel遍历文件时是按顺序的，比如`a.jsx`遍历完才开始遍历`b.jsx`。也就是说Visitor的`ProgramEnter`和`ProgramExit`总是按顺序成对的执行，`a.jsx`的这一套都执行完了才开始执行`b.jsx`的。
 
-#### Webpack
+在babel-plugin-import插件中，会在`ProgramEnter`中给`selectedMethods`等状态对象做初始化。这样如果`ProgramEnter`和`ProgramExit`总是严格按文件顺序成对地执行，即使`selectedMethods`等保存在全部变量中也没有任何问题，因为后一个文件的`ProgramEnter`中会把前一个文件中的`selectedMethods`等再次初始化，也就不存在冲突了。
 
-`Webpack`是现今最流行的前端模块打包工具，可配合`Babel`转换`ES6`代码，对当前各种主流前端框架均有非常完善的生态支持。
+为了证实这点，在此demo中的babel-plugin-import插件，默认是从当前项目目录中的babel-plugin-import目录引入的，为的是在里面打印一些日志。在运行此demo时通常可看到如下正常`ProgramEnter`和`ProgramExit`按顺序成对出现的日志，此时会标记一个`(ok)`：
 
-* [Webpack 中文文档](https://doc.webpack-china.org/concepts/)
-* [入门Webpack，看这篇就够了](http://www.jianshu.com/p/42e11515c10f)
-* [Webpack3.X版 成神之路](http://jspang.com/2017/09/16/webpack3-2/)
+```
+ProgramEnter: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\web\pages\page2\page2.jsx
 
-### 技术与框架列表
+(ok)ProgramExit: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\web\pages\page2\page2.jsx
 
-脚手架中使用的技术与框架列表如下：
+ProgramEnter: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\web\pages\page1\page1.jsx
 
-* [React](#react)
-* [Mobx](#mobx)
-* [NornJ](#nornj)
-* [CSS Modules](#css-modules)
-* [styled-jsx](#styled-jsx)
-* [Ant Design](#ant-design)
-* [Echarts](#echarts)
-* [FlareJ](#flarej)
-* [Font Awesome](#font-awesome)
+(ok)ProgramExit: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\web\pages\page1\page1.jsx
 
-#### React
+ProgramEnter: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\web\pages\page9\page9.jsx
 
-`React`是当前最流行的前端组件化框架之一，有非常丰富的社区贡献第三方工具与组件。
+(ok)ProgramExit: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\web\pages\page9\page9.jsx
 
-* [React 中文文档](https://doc.react-china.org/)
-* [React 官方文档](https://facebook.github.io/react/)
-* [React 中文论坛](http://react-china.org/)
-* [React 入门实例教程](http://www.ruanyifeng.com/blog/2015/03/react.html)
-* [React Router 使用教程](http://www.ruanyifeng.com/blog/2016/05/react_router.html)
-* [React 技术栈系列教程](http://www.ruanyifeng.com/blog/2016/09/react-technology-stack.html)
+ProgramEnter: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\web\pages\page19\page19.jsx
 
-#### Mobx
+(ok)ProgramExit: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\web\pages\page19\page19.jsx
+```
 
-`MobX`是一个可提供响应式编程的状态管理库，`React`和`MobX`是一对强力组合。而`Mobx-state-tree`是`MobX`官方提供的状态容器方案，可编写更规范的`MobX`代码。
+但是，经实践发现在`webpack + babel-loader`这个环境下，是有可能出现`ProgramEnter`和`ProgramExit`不按顺序成对执行的情况。这时日志中会打印`【Error!!】`：
 
-* [MobX 中文文档](http://cn.mobx.js.org/)
-* [10分钟极速入门 MobX 与 React](http://www.tuicool.com/articles/yYnmi26)
-* [我为什么从Redux迁移到了Mobx](https://tech.youzan.com/mobx_vs_redux/)
-* [Mobx-state-tree github文档](https://github.com/mobxjs/mobx-state-tree)
-&lt;!-- * [Mobx-state-tree github文档(v0.9.5)](https://github.com/mobxjs/mobx-state-tree/tree/0.9.5) --&gt;
+```
+ProgramEnter: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\web\pages\page20\page20.jsx
 
-#### NornJ
+ProgramEnter: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\stores\pages\page19Store.js
 
-`NornJ`是可同时支持渲染字符串和`React`组件的前端模板引擎，可覆盖很多`JSX`做不到的使用场景，也可配合`JSX`使用(babel-plugin-nornj-in-jsx)。
+(ok)ProgramExit: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\stores\pages\page19Store.js
 
-* [github地址](https://github.com/joe-sky/nornj)
-* [NornJ指南](https://joe-sky.gitbooks.io/nornj-guide)
-* [babel-plugin-nornj-in-jsx插件文档](https://github.com/joe-sky/nornj/blob/master/packages/babel-plugin-nornj-in-jsx/README.md)
+ProgramEnter: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\stores\pages\page17Store.js
 
-#### CSS Modules
+(ok)ProgramExit: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\stores\pages\page17Store.js
 
-`CSS Modules`是一种可以提供局部css样式的解决方案。
+【Error!!】ProgramExit: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\web\pages\page20\page20.jsx
 
-* [CSS Modules 用法教程](http://www.ruanyifeng.com/blog/2016/06/css_modules.html)
+ProgramEnter: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\web\pages\page16\page16.jsx
 
-#### styled-jsx
+(ok)ProgramExit: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\web\pages\page16\page16.jsx
+```
 
-`styled-jsx`是一种可以直接在JSX标签中编写css样式的解决方案。
+从上面可以看出，出现错误的文件`page20.jsx`中的`ProgramEnter`和`ProgramExit`并没按顺序成对地出现。而此时点击demo中左侧菜单访问相应的页面：
 
-* [github文档](https://github.com/zeit/styled-jsx)
-* [React拾遗：从10种现在流行的 CSS 解决方案谈谈我的最爱 （下）](https://juejin.im/post/5b3dd2d25188251b193d2d7e)
+![](images/4.png?raw=true)
 
-#### Ant Design
+就会报出`_Row is not defined`的错误：
 
-`Ant Design`是蚂蚁金服开发的基于`React`的开源ui组件库，提供了几十个可直接使用的高质量组件。
+![](images/5.png?raw=true)
 
-* [Ant Design 官方文档](https://ant.design/docs/react/introduce-cn)
+## 解决方案
 
-#### Echarts
+有一个较成功的css in js插件`styled-jsx`，它也是一个babel插件。参考了[它内部存储状态的方案](https://github.com/zeit/styled-jsx/blob/master/src/babel.js#L274)，可以将状态保存在Visitor中各方法提供的`state`变量中，也就是`path`后的第二个参数。因为`state`对于每个babel正在遍历的文件来说是各自独立的，保存在它上不会出现保存在全局变量中冲突的问题。
 
-`Echarts`是百度开发的前端图表库。
-
-* [Echarts 官方文档](http://echarts.baidu.com/index.html)
-
-#### FlareJ
-
-`FlareJ`是一个基于`React`和`NornJ`的UI组件库，包含一些易于配合`NornJ`使用的常用组件。
-
-* [github文档](https://github.com/joe-sky/flarej)
-
-#### Font Awesome
-
-`Font Awesome`是流行的字体图标库。
-
-* [官方文档](http://fontawesome.io/icons/)
-
-### 一些常用工具
-
-* [Moment.js](#momentjs)
-* [storejs](#storejs)
-* [js-cookie](#js-cookie)
-* [query-string](#query-string)
-
-#### Moment.js
-
-`Moment.js`是非常流行的处理日期时间操作库。
-
-* [官方文档](http://momentjs.com/)
-
-#### storejs
-
-`storejs`可以用来处理本地存储localstorage操作。
-
-* [github文档](https://github.com/jaywcjlove/store.js)
-* [项目中使用实例](http://source.jd.com/app/ai_category_manager/blob/master/end-delimiter/aicm%2Dui/src/components/queryForm/queryForm.js)
-
-#### js-cookie
-
-`js-cookie`可以用来处理各种cookie操作。
-
-* [github文档](https://github.com/js-cookie/js-cookie)
-
-#### query-string
-
-`query-string`可以用来处理url参数操作。
-
-* [github文档](https://github.com/sindresorhus/query-string)
+依这个思路修改插件后，可将此demo中的`.babelrc`配置里的`./babel-plugin-import`改为`./babel-plugin-import-fixed`。`./babel-plugin-import-fixed`里面的是将状态保存在`state`中的方案。经我们一段时间实战测试后，每次执行构建均无此bug。

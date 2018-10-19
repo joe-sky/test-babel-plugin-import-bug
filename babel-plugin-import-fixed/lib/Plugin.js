@@ -128,7 +128,7 @@ function () {
     key: "ProgramExit",
     value: function ProgramExit(path, state) {
       const mayBeHasError = state.file.opts.filename !== state.__ProgramEnterFileName;
-      console.log('\n' + (mayBeHasError ? '\n【Error!!】' : '(ok)') + 'ProgramExit:' + state.file.opts.filename + (mayBeHasError ? '\n' : ''));
+      console.log('\n' + (mayBeHasError ? '\n【Error!!】' : '(ok)') + 'ProgramExit: ' + state.file.opts.filename + (mayBeHasError ? '\n' : ''));
       state.pathsToRemove.forEach(function (p) {
         return !p.removed && p.remove();
       });
