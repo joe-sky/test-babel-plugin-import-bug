@@ -55,6 +55,8 @@ import { Row, Col, Menu, Dropdown, Icon } from 'antd';
 
 为了证实这点，在此demo中的babel-plugin-import插件，默认是从当前项目目录中的babel-plugin-import目录引入的，为的是在里面打印一些日志。在运行此demo时通常可看到如下正常`ProgramEnter`和`ProgramExit`按顺序成对出现的日志，此时会标记一个`(ok)`：
 
+> 判断`(ok)`的依据是在`ProgramEnter`中保存当前文件名变量`__ProgramEnterFileName`，然后在`ProgramExit`中再用当前文件名和之前存储的`__ProgramEnterFileName`进行比较，一致则为`(ok)`。
+
 ```
 ProgramEnter: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\web\pages\page2\page2.jsx
 
@@ -105,4 +107,28 @@ ProgramEnter: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\sr
 
 有一个较成功的css in js插件`styled-jsx`，它也是一个babel插件。参考了[它内部存储状态的方案](https://github.com/zeit/styled-jsx/blob/master/src/babel.js#L274)，可以将状态保存在Visitor中各方法提供的`state`变量中，也就是`path`后的第二个参数。因为`state`对于每个babel正在遍历的文件来说是各自独立的，保存在它上不会出现保存在全局变量中冲突的问题。
 
-依这个思路修改插件后，可将此demo中的`.babelrc`配置里的`./babel-plugin-import`改为`./babel-plugin-import-fixed`。`./babel-plugin-import-fixed`里面的是将状态保存在`state`中的方案。经我们一段时间实战测试后，每次执行构建均无此bug。
+依这个思路修改插件后，可将此demo中的`.babelrc`配置里的`./babel-plugin-import`改为`./babel-plugin-import-fixed`。`./babel-plugin-import-fixed`里面的是将状态保存在`state`中的方案。经我们一段时间实战测试后，每次执行构建均无此bug：
+
+```
+ProgramEnter: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\web\components\sider\sider.jsx
+
+ProgramEnter: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\web\components\header\header.jsx
+
+ProgramEnter: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\web\pages\page16\page16.jsx
+
+(ok)ProgramExit: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\web\pages\page16\page16.jsx
+
+(ok)ProgramExit: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\web\components\header\header.jsx
+
+ProgramEnter: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\web\pages\page15\page15.jsx
+
+(ok)ProgramExit: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\web\pages\page15\page15.jsx
+
+ProgramEnter: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\web\pages\page14\page14.jsx
+
+(ok)ProgramExit: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\web\pages\page14\page14.jsx
+
+(ok)ProgramExit: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\web\components\sider\sider.jsx
+```
+
+如上所示，在改进后即使`ProgramEnter`和`ProgramExit`不按顺序成对执行也不会造成错误。
