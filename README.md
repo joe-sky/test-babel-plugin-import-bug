@@ -51,7 +51,7 @@ import { Row, Col, Menu, Dropdown, Icon } from 'antd';
 
 经一定实践，发现在一般正常的构建操作中，babel遍历文件时是按顺序的，比如`a.jsx`遍历完才开始遍历`b.jsx`。也就是说Visitor的`ProgramEnter`和`ProgramExit`总是按顺序成对的执行，`a.jsx`的这一套都执行完了才开始执行`b.jsx`的。
 
-在babel-plugin-import插件中，会在`ProgramEnter`中给`selectedMethods`等状态对象做初始化。这样如果`ProgramEnter`和`ProgramExit`总是严格按文件顺序成对地执行，即使`selectedMethods`等保存在全部变量中也没有任何问题，因为后一个文件的`ProgramEnter`中会把前一个文件中的`selectedMethods`等再次初始化，也就不存在冲突了。
+在babel-plugin-import插件中，会在`ProgramEnter`中给`selectedMethods`等状态对象做初始化。这样如果`ProgramEnter`和`ProgramExit`总是严格按文件顺序成对地执行，即使`selectedMethods`等保存在全局变量中也没有任何问题，因为后一个文件的`ProgramEnter`中会把前一个文件中的`selectedMethods`等再次初始化，也就不存在冲突了。
 
 为了证实这点，在此demo中的babel-plugin-import插件，默认是从当前项目目录中的babel-plugin-import目录引入的，为的是在里面打印一些日志。在运行此demo时通常可看到如下正常`ProgramEnter`和`ProgramExit`按顺序成对出现的日志，此时会标记一个`(ok)`：
 
