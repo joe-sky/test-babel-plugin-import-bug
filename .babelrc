@@ -29,7 +29,7 @@
   "plugins": [
     "@babel/plugin-syntax-dynamic-import",
     [
-      "./babel-plugin-import-fixed",
+      "./babel-plugin-import",
       {
         "libraryName": "antd",
         "style": true
@@ -37,7 +37,7 @@
       "ant"
     ],
     [
-      "./babel-plugin-import-fixed",
+      "./babel-plugin-import",
       {
         "libraryName": "flarej",
         "libraryDirectory": "lib/components",
