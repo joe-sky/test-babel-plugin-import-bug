@@ -29,12 +29,21 @@
   "plugins": [
     "@babel/plugin-syntax-dynamic-import",
     [
-      "./babel-plugin-import",
+      "./babel-plugin-import-fixed",
       {
         "libraryName": "antd",
         "style": true
       },
       "ant"
+    ],
+    [
+      "./babel-plugin-import-fixed",
+      {
+        "libraryName": "flarej",
+        "libraryDirectory": "lib/components",
+        "style": true
+      },
+      "fj"
     ],
     [
       "styled-jsx/babel",

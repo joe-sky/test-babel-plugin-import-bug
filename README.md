@@ -109,6 +109,8 @@ ProgramEnter: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\sr
 
 依这个思路修改插件后，可将此demo中的`.babelrc`配置里的`./babel-plugin-import`改为`./babel-plugin-import-fixed`。`./babel-plugin-import-fixed`里面的是将状态保存在`state`中的方案。经我们一段时间实战测试后，每次执行构建均无此bug：
 
+> 为了支持插件配置多个库，相应地在state中保存状态时，需要按照当前Plugin类实例的索引值在state上为不同的库建立多个状态对象。[具体代码请看这里](https://github.com/joe-sky/babel-plugin-import/blob/master/src/Plugin.js#L46)
+
 ```
 ProgramEnter: D:\joe_sky\flareJ\flareJ\JsLibrary\test-babel-plugin-import-bug\src\web\components\sider\sider.jsx
 

@@ -58,7 +58,7 @@ function _default(_ref) {
       // Init plugin instances once.
       if (!plugins) {
         if (Array.isArray(opts)) {
-          plugins = opts.map(function (_ref3) {
+          plugins = opts.map(function (_ref3, i) {
             var libraryName = _ref3.libraryName,
                 libraryDirectory = _ref3.libraryDirectory,
                 style = _ref3.style,
@@ -68,7 +68,7 @@ function _default(_ref) {
                 customName = _ref3.customName,
                 transformToDefaultImport = _ref3.transformToDefaultImport;
             (0, _assert.default)(libraryName, 'libraryName should be provided');
-            return new _Plugin.default(libraryName, libraryDirectory, style, camel2DashComponentName, camel2UnderlineComponentName, fileName, customName, transformToDefaultImport, types);
+            return new _Plugin.default(libraryName, libraryDirectory, style, camel2DashComponentName, camel2UnderlineComponentName, fileName, customName, transformToDefaultImport, types, i);
           });
         } else {
           (0, _assert.default)(opts.libraryName, 'libraryName should be provided');

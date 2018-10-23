@@ -5,6 +5,7 @@ import nj, { expression as n } from 'nornj';
 import { registerTmpl } from 'nornj-react';
 import { autobind } from 'core-decorators';
 import { Row, Col, Table, Input, Button, Pagination, Tabs, Checkbox, Modal, Tree, Message } from 'antd';
+import { Row as FjRow, Col as FjCol } from 'flarej';
 
 @inject('store')
 @observer
