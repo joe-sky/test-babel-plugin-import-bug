@@ -11,7 +11,7 @@
 
 ## bug出现的环境
 
-`windows 7/10`环境下，`node v8`以上、`webpack v3/4`、`babel v6/7`。
+`windows 7/10`或Mac系统，`node v8`以上、`webpack v3/4`、`babel v6/7`。
 
 ## bug现象
 
